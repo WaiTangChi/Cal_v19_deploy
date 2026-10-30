@@ -208,6 +208,10 @@ It uses the `BUILD` environment (can be changed with `-Environment`). Steps:
 
 Machine requirements: `git` in the PATH with SSH access to the source repository, a valid `JAVA_HOME` for Calypso's Gradle, and access to Maven (Maven Central or a proxy).
 
+## Development installation
+
+The full procedure to rebuild a development installation (clean install, source repository, IntelliJ, log folders, environment property files and local deployer) is in the README of `Cal_v19_custom`, section *Development installation from scratch*.
+
 ## Intended flow
 
 ```
