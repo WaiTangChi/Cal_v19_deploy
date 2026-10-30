@@ -15,11 +15,11 @@
         Windows paths are written as-is: INSTALL_DIR=D:\calypso_v19\DEV
       - A key with an empty value is considered NOT defined.
 
-    Templates: tokens are written as @@@KEY@@@. On rendering, the value is escaped according to the
-    extension of the destination file:
-        .varfile .properties  -> Java/install4j .properties format  ( \ -> \\ , : -> \: , non-ASCII -> \uXXXX )
-        .xml                  -> XML escaping  ( & < > " ' )
-        anything else         -> literal
+    Templates: tokens are written as @@@KEY@@@. On rendering, the value is escaped according to the file
+    format, detected from the file name (or forced with -Format):
+        *.varfile, *.properties, *.properties.<ENV>  -> Properties: Java/install4j format ( \ -> \\ , : -> \: , non-ASCII -> \uXXXX )
+        *.xml                                        -> Xml: XML escaping ( & < > " ' )
+        anything else                                -> Raw: literal
 #>
 
 Set-StrictMode -Version Latest
@@ -111,6 +111,17 @@ function ConvertTo-XmlValue([string] $Value) {
     return [System.Security.SecurityElement]::Escape($Value)
 }
 
+function Get-TemplateFormat {
+    <# Returns the escaping format (Properties, Xml or Raw) for a file name. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)] [string] $Path)
+
+    $name = [System.IO.Path]::GetFileName($Path).ToLowerInvariant()
+    if ($name -like '*.varfile' -or $name -like '*.properties' -or $name -like '*.properties.*') { return 'Properties' }
+    if ($name -like '*.xml') { return 'Xml' }
+    return 'Raw'
+}
+
 function Get-TemplateTokens {
     <# Returns the token names used in a template. #>
     [CmdletBinding()]
@@ -122,15 +133,17 @@ function Get-TemplateTokens {
 
 function Expand-TokenTemplate {
     <#
-        Renders a template replacing @@@KEY@@@ with its value (escaped according to the extension of
-        -Destination). Fails if any token is missing or if any '@@@' remains unresolved.
+        Renders a template replacing @@@KEY@@@ with its value, escaped according to -Format
+        (Auto = detected from the -Destination file name, see Get-TemplateFormat).
+        Fails if any token is missing or if any '@@@' remains unresolved.
         Preserves the template line endings. Writes UTF-8 without BOM.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] [string] $Template,
         [Parameter(Mandatory = $true)] [string] $Destination,
-        [Parameter(Mandatory = $true)] [System.Collections.IDictionary] $Tokens
+        [Parameter(Mandatory = $true)] [System.Collections.IDictionary] $Tokens,
+        [ValidateSet('Auto', 'Properties', 'Xml', 'Raw')] [string] $Format = 'Auto'
     )
 
     if (-not (Test-Path -LiteralPath $Template -PathType Leaf)) { throw "Template not found: $Template" }
@@ -140,11 +153,11 @@ function Expand-TokenTemplate {
         throw "Undefined tokens for '$Template': $($missing -join ', ')"
     }
 
-    $ext = [System.IO.Path]::GetExtension($Destination).ToLowerInvariant()
-    $escape = switch ($ext) {
-        { $_ -in '.varfile', '.properties' } { ${function:ConvertTo-PropertiesValue}; break }
-        '.xml'                                { ${function:ConvertTo-XmlValue};        break }
-        default                               { { param($v) $v } }
+    if ($Format -eq 'Auto') { $Format = Get-TemplateFormat -Path $Destination }
+    $escape = switch ($Format) {
+        'Properties' { ${function:ConvertTo-PropertiesValue} }
+        'Xml'        { ${function:ConvertTo-XmlValue} }
+        default      { { param($v) $v } }
     }
 
     $text = [System.IO.File]::ReadAllText($Template)
@@ -162,4 +175,4 @@ function Expand-TokenTemplate {
     [System.IO.File]::WriteAllText($Destination, $out, (New-Object System.Text.UTF8Encoding($false)))
 }
 
-Export-ModuleMember -Function Read-TokenFile, Get-EnvironmentTokens, Get-TemplateTokens, Expand-TokenTemplate
+Export-ModuleMember -Function Read-TokenFile, Get-EnvironmentTokens, Get-TemplateFormat, Get-TemplateTokens, Expand-TokenTemplate

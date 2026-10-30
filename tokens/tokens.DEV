@@ -7,3 +7,11 @@ INSTALL_DIR=D:\calypso_v19\DEV
 INSTALLER_PATH=D:\calypso_v19\dowloads\calypso-installer-19.26.10.1-win64-rel.exe
 # Paths separated by ';'
 JDBC_DRIVER_FILES=D:\calypso_v19\dowloads\ojdbc8-23.26.3.0.0.jar
+# Deployment
+CALYPSO_USER_NAME=calypso_user
+PORT_OFFSET=25000
+# JDBC
+JDBC_DRIVER=oracle.jdbc.driver.OracleDriver
+JDBC_URL=jdbc:oracle:thin:@localhost:11521/ORCLPDB1
+DB_USER=CALYPSO_DEV
+DB_USER_MT=CALYPSO_MT_DEV

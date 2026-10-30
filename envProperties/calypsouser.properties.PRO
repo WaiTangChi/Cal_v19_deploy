@@ -1,0 +1,21 @@
+#V19
+#Thu Oct 29 21:03:09 CET 2026
+CLIENTUSER=@@@CALYPSO_USER_NAME@@@
+CLIENTPASSWD=@@@CALYPSO_USER_PASSWORD@@@
+USE_DEFAULT_ENCRYPTION=true
+calypso.deployment.port-offset=@@@PORT_OFFSET@@@
+calypso.security.core.client-user=@@@CALYPSO_USER_NAME@@@
+calypso.security.core.client-password=@@@CALYPSO_USER_PASSWORD@@@
+calypso.infra.rods.enabled=false
+calypso.infra.encryption.crypt-password=true
+SAVE_TO_FILE=true
+calypso.db.core.driver=@@@JDBC_DRIVER@@@
+calypso.db.core.url=@@@JDBC_URL@@@
+calypso.db.core.user=@@@DB_USER@@@
+calypso.db.core.password=@@@DB_PASS@@@
+calypso.db.middletier.driver=@@@JDBC_DRIVER@@@
+calypso.db.middletier.url=@@@JDBC_URL@@@
+calypso.db.middletier.user=@@@DB_USER_MT@@@
+calypso.db.middletier.password=@@@DB_PASS_MT@@@
+calypso.server.data-server-name=PRO
+USE_SSL=true
