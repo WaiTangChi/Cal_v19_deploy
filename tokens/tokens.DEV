@@ -1,0 +1,9 @@
+# Tokens for the DEV environment
+# Format: KEY=value (literal value, Windows paths as-is). Empty value = not defined.
+# No passwords here: they go in secrets\tokens.DEV.secrets (not versioned).
+
+# --- Installation ---
+INSTALL_DIR=D:\calypso_v19\DEV
+INSTALLER_PATH=D:\calypso_v19\dowloads\calypso-installer-19.26.10.1-win64-rel.exe
+# Paths separated by ';'
+JDBC_DRIVER_FILES=D:\calypso_v19\dowloads\ojdbc8-23.26.3.0.0.jar

@@ -1,124 +1,108 @@
 ﻿<#
 .SYNOPSIS
-    Crea una instalación limpia de Calypso en modo desatendido (install4j).
+    Creates a clean, unattended Calypso installation (install4j) for an environment.
 
 .DESCRIPTION
-    1. Valida el instalador, el varfile plantilla, los drivers JDBC y el destino (que debe no existir o estar vacío).
-    2. Genera un varfile temporal a partir de la plantilla, sustituyendo sys.installationDir
-       (y jdbcDriverFiles si se indica).
-    3. Ejecuta el instalador con -q -varfile <varfile temporal> y espera a que termine.
-    4. Comprueba el código de salida y que existan las carpetas básicas de la instalación.
+    1. Loads the environment tokens (tokens\tokens.COMMON + tokens\tokens.<ENV> + secrets + overrides).
+    2. Validates the installer (INSTALLER_PATH), the JDBC drivers (JDBC_DRIVER_FILES) and the target
+       directory (INSTALL_DIR), which must not exist or must be empty.
+    3. Renders the install\calypso-19.26.10.1.varfile template into a temporary varfile.
+    4. Runs the installer with -q -varfile <temporary> and waits for it to finish.
+    5. Checks the exit code and that the basic installation folders exist.
 
-.PARAMETER DestinationDir
-    Carpeta de instalación. No debe existir o debe estar vacía.
+    Tokens used: INSTALL_DIR, INSTALLER_PATH, JDBC_DRIVER_FILES.
 
-.PARAMETER InstallerPath
-    Ruta del instalador de Calypso.
+.PARAMETER Environment
+    Environment: name of the tokens\tokens.<Environment> file (DEV, PRE, PRO, BUILD, ...).
+
+.PARAMETER TokenOverride
+    Optional. Tokens that override those of the file, e.g. @{ INSTALL_DIR = 'D:\calypso_v19\other' }.
 
 .PARAMETER VarFileTemplate
-    Varfile plantilla (formato install4j / .properties). Por defecto, el que está junto a este script.
-
-.PARAMETER JdbcDriverFiles
-    Opcional. Rutas de los drivers JDBC separadas por ';'. Sustituye el valor de jdbcDriverFiles de la plantilla.
+    Varfile template. Defaults to the one next to this script.
 
 .EXAMPLE
-    .\New-CalypsoInstall.ps1 -DestinationDir D:\calypso_v19\build-node
+    .\install\New-CalypsoInstall.ps1 -Environment DEV
 
 .EXAMPLE
-    .\New-CalypsoInstall.ps1 -DestinationDir D:\calypso_v19\pre `
-        -JdbcDriverFiles 'D:\drivers\ojdbc8-23.26.3.0.0.jar'
+    .\install\New-CalypsoInstall.ps1 -Environment DEV -TokenOverride @{ INSTALL_DIR = 'D:\calypso_v19\other' }
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string] $DestinationDir,
+    [string] $Environment,
 
-    [string] $InstallerPath = 'D:\calypso_v19\dowloads\calypso-installer-19.26.10.1-win64-rel.exe',
+    [hashtable] $TokenOverride = @{},
 
-    [string] $VarFileTemplate = (Join-Path $PSScriptRoot 'calypso-19.26.10.1.varfile'),
-
-    [string] $JdbcDriverFiles
+    [string] $VarFileTemplate = (Join-Path $PSScriptRoot 'calypso-19.26.10.1.varfile')
 )
 
 $ErrorActionPreference = 'Stop'
+$repoRoot = Split-Path -Parent $PSScriptRoot
+Import-Module (Join-Path $repoRoot 'lib\Tokens.psm1') -Force
+Import-Module (Join-Path $repoRoot 'lib\Processes.psm1') -Force
 
-# --- Formato .properties de install4j: '\' -> '\\'  y  ':' -> '\:' -------------------------
-function ConvertTo-PropertyPath([string] $Path) {
-    return $Path.Replace('\', '\\').Replace(':', '\:')
-}
-function ConvertFrom-PropertyPath([string] $Value) {
-    return $Value.Replace('\:', ':').Replace('\\', '\')
-}
+# --- 1. Tokens ------------------------------------------------------------------------------
+$tokens = Get-EnvironmentTokens -Environment $Environment -RepoRoot $repoRoot -Override $TokenOverride
 
-# --- 1. Validaciones ------------------------------------------------------------------------
-if (-not (Test-Path -LiteralPath $InstallerPath -PathType Leaf)) {
-    throw "No existe el instalador: $InstallerPath"
-}
-if (-not (Test-Path -LiteralPath $VarFileTemplate -PathType Leaf)) {
-    throw "No existe el varfile plantilla: $VarFileTemplate"
+$required = @('INSTALL_DIR', 'INSTALLER_PATH', 'JDBC_DRIVER_FILES')
+$missing  = @($required | Where-Object { -not $tokens.Contains($_) })
+if ($missing.Count -gt 0) {
+    throw "Missing tokens in environment '$Environment': $($missing -join ', ')"
 }
 
-$DestinationDir = [System.IO.Path]::GetFullPath($DestinationDir)
-if ($DestinationDir -match '[^\x20-\x7E]') {
-    throw "La ruta de destino contiene caracteres no ASCII (no soportados por el varfile): $DestinationDir"
-}
-if ((Test-Path -LiteralPath $DestinationDir) -and
-    (Get-ChildItem -LiteralPath $DestinationDir -Force | Select-Object -First 1)) {
-    throw "El destino existe y no está vacío: $DestinationDir"
-}
+$installDir    = [System.IO.Path]::GetFullPath($tokens['INSTALL_DIR'])
+$installerPath = $tokens['INSTALLER_PATH']
+$jdbcPaths     = @($tokens['JDBC_DRIVER_FILES'] -split ';' | Where-Object { $_ })
+$tokens['INSTALL_DIR'] = $installDir
 
-$template = Get-Content -LiteralPath $VarFileTemplate
-if (-not ($template | Where-Object { $_ -like 'sys.installationDir=*' })) {
-    throw "La plantilla no contiene sys.installationDir: $VarFileTemplate"
-}
-
-# Drivers JDBC: los indicados por parámetro o los de la plantilla
-if ($JdbcDriverFiles) {
-    $jdbcPaths = $JdbcDriverFiles -split ';' | Where-Object { $_ }
-} else {
-    $jdbcLine  = $template | Where-Object { $_ -like 'jdbcDriverFiles=*' } | Select-Object -First 1
-    $jdbcPaths = @()
-    if ($jdbcLine) {
-        $jdbcPaths = ($jdbcLine.Substring('jdbcDriverFiles='.Length) -split ';') |
-                     Where-Object { $_ } | ForEach-Object { ConvertFrom-PropertyPath $_ }
-    }
+# --- 2. Validation --------------------------------------------------------------------------
+if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
+    throw "Installer not found (INSTALLER_PATH): $installerPath"
 }
 foreach ($p in $jdbcPaths) {
-    if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { throw "No existe el driver JDBC: $p" }
+    if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { throw "JDBC driver not found (JDBC_DRIVER_FILES): $p" }
+}
+if ((Test-Path -LiteralPath $installDir) -and
+    (Get-ChildItem -LiteralPath $installDir -Force | Select-Object -First 1)) {
+    throw "Target directory (INSTALL_DIR) exists and is not empty: $installDir"
 }
 
-# --- 2. Varfile temporal ---------------------------------------------------------------------
-$varFile = Join-Path ([System.IO.Path]::GetTempPath()) ('calypso-install-{0:yyyyMMdd-HHmmss}.varfile' -f (Get-Date))
+# --- 3. Temporary varfile -------------------------------------------------------------------
+$varFile = Join-Path ([System.IO.Path]::GetTempPath()) ('calypso-install-{0}-{1:yyyyMMdd-HHmmss}.varfile' -f $Environment, (Get-Date))
+Expand-TokenTemplate -Template $VarFileTemplate -Destination $varFile -Tokens $tokens
 
-$lines = foreach ($line in $template) {
-    if ($line -like 'sys.installationDir=*') {
-        'sys.installationDir=' + (ConvertTo-PropertyPath $DestinationDir)
-    } elseif ($JdbcDriverFiles -and $line -like 'jdbcDriverFiles=*') {
-        'jdbcDriverFiles=' + ((($jdbcPaths | ForEach-Object { ConvertTo-PropertyPath $_ }) -join ';') + ';')
-    } else {
-        $line
-    }
-}
-[System.IO.File]::WriteAllLines($varFile, [string[]] $lines, [System.Text.Encoding]::ASCII)
-
-# --- 3. Instalación --------------------------------------------------------------------------
-Write-Host "Instalador : $InstallerPath"
-Write-Host "Destino    : $DestinationDir"
-Write-Host "Varfile    : $varFile"
+# --- 4. Installation ------------------------------------------------------------------------
+Write-Host "Environment : $Environment"
+Write-Host "Installer   : $installerPath"
+Write-Host "Target      : $installDir"
+Write-Host "Varfile     : $varFile"
 $start = Get-Date
 
+# The installer runs the installation's own Gradle several times (installLibraries, createClientPackage, patch...).
+# By default Gradle starts a daemon that outlives the installer and locks files in INSTALL_DIR.
+# With org.gradle.daemon=false in GRADLE_OPTS (inherited by the installer) no daemon is created.
+$previousGradleOpts = $env:GRADLE_OPTS
+$env:GRADLE_OPTS = (@($previousGradleOpts, '-Dorg.gradle.daemon=false') | Where-Object { $_ }) -join ' '
+
 try {
-    $proc = Start-Process -FilePath $InstallerPath `
-                          -ArgumentList @('-q', '-varfile', "`"$varFile`"") `
-                          -Wait -PassThru
-    if ($proc.ExitCode -ne 0) {
-        throw "El instalador terminó con código $($proc.ExitCode). Revisa $DestinationDir\.install4j\installation.log"
+    # Wait only for the installer, not for its children: if it left a process alive, Start-Process -Wait would never return.
+    $exitCode = Invoke-ProcessAndWait -FilePath $installerPath -ArgumentList @('-q', '-varfile', "`"$varFile`"")
+    if ($exitCode -ne 0) {
+        throw "Installer exited with code $exitCode. Check $installDir\.install4j\installation.log"
     }
 } finally {
+    $env:GRADLE_OPTS = $previousGradleOpts
     Remove-Item -LiteralPath $varFile -ErrorAction SilentlyContinue
 }
 
-# --- 4. Comprobaciones -----------------------------------------------------------------------
+# Processes left alive by the installer that use the installation (they lock files)
+$leftover = @(Get-ProcessesUsing -Dir $installDir)
+foreach ($p in $leftover) {
+    Write-Warning "The installer left a process using the installation: $(Format-ProcessInfo $p)"
+}
+
+# --- 5. Checks ------------------------------------------------------------------------------
 $expected = @(
     'client\lib',
     'server',
@@ -128,10 +112,10 @@ $expected = @(
     'tools\local-deployer',
     'patch.bat'
 )
-$missing = $expected | Where-Object { -not (Test-Path -LiteralPath (Join-Path $DestinationDir $_)) }
-if ($missing) {
-    throw "Instalación incompleta. Falta: $($missing -join ', ')"
+$notFound = @($expected | Where-Object { -not (Test-Path -LiteralPath (Join-Path $installDir $_)) })
+if ($notFound.Count -gt 0) {
+    throw "Incomplete installation. Missing: $($notFound -join ', ')"
 }
 
 $elapsed = (Get-Date) - $start
-Write-Host ("Instalación completada en {0:mm\:ss} -> {1}" -f $elapsed, $DestinationDir)
+Write-Host ("Installation completed in {0:mm\:ss} -> {1}" -f $elapsed, $installDir)

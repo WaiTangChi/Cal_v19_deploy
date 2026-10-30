@@ -1,23 +1,23 @@
-# --- Secretos: solo se versionan las plantillas *.example ---
+# --- Secrets: only *.example templates are versioned ---
 secrets/*
 !secrets/*.example
 *.secret
 *.secrets
 local.properties
 
-# --- Artefactos descargados / generados ---
+# --- Downloaded / generated artifacts ---
 *.cup
 *.exe
 *.zip
 *.log
 tmp/
 
-# --- IDE / editores ---
+# --- IDE / editors ---
 .idea/
 *.iml
 .vscode/
 
-# --- Sistema ---
+# --- OS ---
 .DS_Store
 Thumbs.db
 *.swp

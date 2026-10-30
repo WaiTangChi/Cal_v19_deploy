@@ -1,4 +1,4 @@
-# Normaliza finales de línea en el repo (LF) y usa los nativos al hacer checkout
+# Normalize line endings in the repository (LF) and use native ones on checkout
 * text=auto
 
 # Windows
@@ -10,7 +10,7 @@
 # Linux
 *.sh       text eol=lf
 
-# Binarios
+# Binaries
 *.jar  binary
 *.zip  binary
 *.cup  binary
