@@ -1,0 +1,12 @@
+# install4j response file for Calypso 19.26.10.1
+jdbcDriverFiles=D\:\\calypso_v19\\dowloads\\ojdbc8-23.26.3.0.0.jar;
+sys.adminRights$Boolean=false
+sys.component.AllComponents$Boolean=false
+sys.component.BaseInstallationComponent$Boolean=true
+sys.component.CALYPSOETDCME$Boolean=false
+sys.component.EqlipseDigital$Boolean=false
+sys.installationDir=D\:\\calypso_v19\\calypso-19.26.10.1
+sys.languageId=en
+sys.programGroupAllUsers$Boolean=true
+sys.programGroupDisabled$Boolean=true
+sys.programGroupName=Calypso

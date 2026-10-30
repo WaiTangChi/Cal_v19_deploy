@@ -1,0 +1,17 @@
+# Normaliza finales de línea en el repo (LF) y usa los nativos al hacer checkout
+* text=auto
+
+# Windows
+*.ps1      text eol=crlf
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
+*.varfile  text eol=crlf
+
+# Linux
+*.sh       text eol=lf
+
+# Binarios
+*.jar  binary
+*.zip  binary
+*.cup  binary
+*.exe  binary

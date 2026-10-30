@@ -1,0 +1,24 @@
+# --- Secretos: solo se versionan las plantillas *.example ---
+secrets/*
+!secrets/*.example
+*.secret
+*.secrets
+local.properties
+
+# --- Artefactos descargados / generados ---
+*.cup
+*.exe
+*.zip
+*.log
+tmp/
+
+# --- IDE / editores ---
+.idea/
+*.iml
+.vscode/
+
+# --- Sistema ---
+.DS_Store
+Thumbs.db
+*.swp
+*~
